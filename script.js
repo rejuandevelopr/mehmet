@@ -63,6 +63,8 @@ const utils = {
 // SCROLL LOCK MANAGEMENT
 // ===================================
 const scrollManager = {
+  scrollPosition: 0,
+  
   unlock() {
     if (!state.scrollUnlocked) {
       document.body.classList.remove('locked');
@@ -71,8 +73,18 @@ const scrollManager = {
   },
 
   lock() {
+    // Save current scroll position
+    this.scrollPosition = window.pageYOffset;
     document.body.classList.add('locked');
+    document.body.style.top = `-${this.scrollPosition}px`;
     state.scrollUnlocked = false;
+  },
+  
+  restore() {
+    document.body.classList.remove('locked');
+    document.body.style.top = '';
+    window.scrollTo(0, this.scrollPosition);
+    state.scrollUnlocked = true;
   }
 };
 
@@ -302,7 +314,7 @@ const gallery = {
 
   closeLightbox() {
     this.lightbox.style.display = 'none';
-    scrollManager.unlock();
+    scrollManager.restore();
   },
 
   updateLightboxImage() {
@@ -420,22 +432,49 @@ const booking = {
 
   open(box, overlay) {
     state.isBookingOpen = true;
+    
+    // Add active classes
     box.classList.add('active');
     if (overlay) overlay.classList.add('active');
+    
+    // Lock scroll
     scrollManager.lock();
     
-    // Focus first input
-    const firstInput = box.querySelector('input');
-    if (firstInput) {
-      setTimeout(() => firstInput.focus(), 300);
-    }
+    // Prevent text selection on body when form is open
+    document.body.style.userSelect = 'none';
+    document.body.style.webkitUserSelect = 'none';
+    
+    // Re-enable text selection inside the form
+    box.style.userSelect = 'auto';
+    box.style.webkitUserSelect = 'auto';
+    
+    // Focus first input after animation
+    setTimeout(() => {
+      const firstInput = box.querySelector('input');
+      if (firstInput) {
+        firstInput.focus();
+      }
+    }, 400);
   },
 
   close(box, overlay) {
     state.isBookingOpen = false;
+    
+    // Remove active classes
     box.classList.remove('active');
     if (overlay) overlay.classList.remove('active');
-    scrollManager.unlock();
+    
+    // Restore scroll
+    scrollManager.restore();
+    
+    // Re-enable text selection
+    document.body.style.userSelect = '';
+    document.body.style.webkitUserSelect = '';
+    
+    // Blur any focused input
+    if (document.activeElement) {
+      document.activeElement.blur();
+    }
   },
 
   setupFormValidation(form) {

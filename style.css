@@ -93,6 +93,9 @@ body {
 /* Lock scroll initially */
 body.locked {
   overflow: hidden;
+  position: fixed;
+  width: 100%;
+  height: 100%;
 }
 
 /* Accessibility - Skip Link */
@@ -810,12 +813,14 @@ a {
   backdrop-filter: blur(5px);
   z-index: var(--z-modal);
   opacity: 0;
-  transition: opacity var(--transition-base);
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
 }
 
 .booking-overlay.active {
   display: block;
   opacity: 1;
+  visibility: visible;
 }
 
 .booking-box {
@@ -832,13 +837,13 @@ a {
   box-shadow: var(--shadow-xl);
   z-index: calc(var(--z-modal) + 1);
   overflow-y: auto;
-  opacity: 0;
+  visibility: hidden;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .booking-box.active {
   transform: translateY(-50%) translateX(0);
-  opacity: 1;
+  visibility: visible;
 }
 
 .booking-close {
@@ -1131,10 +1136,15 @@ a {
     font-size: 1rem;
     width: auto;
     max-width: 90%;
+    z-index: 999;
   }
   
   .booking-toggle span {
     display: inline;
+  }
+  
+  .booking-overlay {
+    z-index: 1500;
   }
   
   .booking-box {
@@ -1142,24 +1152,27 @@ a {
     top: 50%;
     left: 50%;
     right: auto;
-    transform: translate(-50%, -50%) scale(0.95);
-    opacity: 0;
-    width: 92%;
+    bottom: auto;
+    transform: translate(-50%, -50%) translateY(100vh);
+    width: 90%;
     max-width: 500px;
-    max-height: 90vh;
+    max-height: 85vh;
     padding: var(--spacing-xl) var(--spacing-lg);
     border-radius: var(--radius-xl);
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    z-index: 1501;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   
   .booking-box.active {
-    transform: translate(-50%, -50%) scale(1);
-    opacity: 1;
+    transform: translate(-50%, -50%) translateY(0);
   }
   
   .booking-box h2 {
     font-size: 1.5rem;
     margin-bottom: var(--spacing-lg);
+    margin-top: var(--spacing-md);
   }
   
   .form-group {
@@ -1173,7 +1186,9 @@ a {
   
   .booking-box input {
     padding: 12px;
-    font-size: 0.95rem;
+    font-size: 1rem;
+    -webkit-appearance: none;
+    appearance: none;
   }
   
   .booking-close {
@@ -1182,6 +1197,7 @@ a {
     width: 40px;
     height: 40px;
     font-size: 1.5rem;
+    z-index: 10;
   }
   
   .contact-list li {
@@ -1225,7 +1241,7 @@ a {
   }
   
   .booking-box {
-    width: 95%;
+    width: 94%;
     max-height: 88vh;
     padding: var(--spacing-lg) var(--spacing-md);
   }
@@ -1240,17 +1256,17 @@ a {
   }
   
   .form-group label {
-    font-size: 0.8rem;
+    font-size: 0.85rem;
   }
   
   .booking-box input {
-    padding: 10px;
-    font-size: 0.9rem;
+    padding: 11px;
+    font-size: 1rem;
   }
   
   .booking-box button[type="submit"] {
-    padding: 12px;
-    font-size: 0.95rem;
+    padding: 13px;
+    font-size: 1rem;
   }
 }
 
