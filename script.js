@@ -1,27 +1,21 @@
 /**
- * MMM Transport Moving - Main JavaScript
- * Professional moving services website
+ * MMM Transport Moving - JavaScript
+ * Modern, conversion-optimized moving company website
  */
 
 'use strict';
 
-// ===================================
-// STATE MANAGEMENT
-// ===================================
 const state = {
-  scrollUnlocked: false,
   currentLightboxIndex: 0,
   isBookingOpen: false,
-  isMobileMenuOpen: false
+  isMobileMenuOpen: false,
+  hasAnimated: {
+    stats: false
+  },
+  exitIntentShown: false
 };
 
-// ===================================
-// UTILITY FUNCTIONS
-// ===================================
 const utils = {
-  /**
-   * Debounce function to limit function calls
-   */
   debounce(func, wait) {
     let timeout;
     return function executedFunction(...args) {
@@ -34,63 +28,60 @@ const utils = {
     };
   },
 
-  /**
-   * Check if element is in viewport
-   */
-  isInViewport(element) {
+  throttle(func, wait) {
+    let throttled = false;
+    return function(...args) {
+      if (!throttled) {
+        func.apply(this, args);
+        throttled = true;
+        setTimeout(() => throttled = false, wait);
+      }
+    };
+  },
+
+  isInViewport(element, offset = 0) {
     const rect = element.getBoundingClientRect();
     return (
-      rect.top >= 0 &&
-      rect.left >= 0 &&
-      rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
-      rect.right <= (window.innerWidth || document.documentElement.clientWidth)
+      rect.top <= (window.innerHeight || document.documentElement.clientHeight) - offset &&
+      rect.bottom >= 0
     );
   },
 
-  /**
-   * Smooth scroll to element
-   */
   smoothScrollTo(element) {
     if (!element) return;
     element.scrollIntoView({
       behavior: 'smooth',
       block: 'start'
     });
+  },
+
+  formatPhoneNumber(value) {
+    const cleaned = value.replace(/\D/g, '');
+    const match = cleaned.match(/^(\d{0,3})(\d{0,3})(\d{0,4})$/);
+    if (!match) return value;
+
+    let formatted = '';
+    if (match[1]) formatted = `(${match[1]}`;
+    if (match[2]) formatted += `) ${match[2]}`;
+    if (match[3]) formatted += `-${match[3]}`;
+    return formatted;
   }
 };
 
-// ===================================
-// SCROLL LOCK MANAGEMENT
-// ===================================
-const scrollManager = {
-  scrollPosition: 0,
-  
-  unlock() {
-    if (!state.scrollUnlocked) {
-      document.body.classList.remove('locked');
-      state.scrollUnlocked = true;
-    }
-  },
+const scrollProgress = {
+  init() {
+    const progressBar = document.querySelector('.scroll-progress');
+    if (!progressBar) return;
 
-  lock() {
-    // Save current scroll position
-    this.scrollPosition = window.pageYOffset;
-    document.body.classList.add('locked');
-    document.body.style.top = `-${this.scrollPosition}px`;
-    state.scrollUnlocked = false;
-  },
-  
-  restore() {
-    document.body.classList.remove('locked');
-    document.body.style.top = '';
-    window.scrollTo(0, this.scrollPosition);
-    state.scrollUnlocked = true;
+    window.addEventListener('scroll', utils.throttle(() => {
+      const winScroll = document.body.scrollTop || document.documentElement.scrollTop;
+      const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+      const scrolled = (winScroll / height) * 100;
+      progressBar.style.width = scrolled + '%';
+    }, 50));
   }
 };
 
-// ===================================
-// MOBILE MENU
-// ===================================
 const mobileMenu = {
   init() {
     const toggle = document.querySelector('.mobile-menu-toggle');
@@ -99,12 +90,10 @@ const mobileMenu = {
 
     if (!toggle || !menu) return;
 
-    // Toggle menu
     toggle.addEventListener('click', () => {
       this.toggle(toggle, menu);
     });
 
-    // Close menu when clicking nav links
     navLinks.forEach(link => {
       link.addEventListener('click', () => {
         if (state.isMobileMenuOpen) {
@@ -113,10 +102,9 @@ const mobileMenu = {
       });
     });
 
-    // Close menu when clicking outside
     document.addEventListener('click', (e) => {
-      if (state.isMobileMenuOpen && 
-          !menu.contains(e.target) && 
+      if (state.isMobileMenuOpen &&
+          !menu.contains(e.target) &&
           !toggle.contains(e.target)) {
         this.close(toggle, menu);
       }
@@ -138,34 +126,25 @@ const mobileMenu = {
   }
 };
 
-// ===================================
-// NAVIGATION
-// ===================================
 const navigation = {
   init() {
-    // Explore button
-    const exploreBtn = document.getElementById('exploreBtn');
-    if (exploreBtn) {
-      exploreBtn.addEventListener('click', () => {
-        scrollManager.unlock();
-        const aboutSection = document.getElementById('about');
-        utils.smoothScrollTo(aboutSection);
-      });
-    }
+    const navLinks = document.querySelectorAll('.nav-link, a[href^="#"]');
 
-    // Navigation links
-    const navLinks = document.querySelectorAll('.nav-link');
     navLinks.forEach(link => {
       link.addEventListener('click', (e) => {
-        e.preventDefault();
-        scrollManager.unlock();
-        const targetId = link.getAttribute('href');
-        const targetElement = document.querySelector(targetId);
-        utils.smoothScrollTo(targetElement);
+        const href = link.getAttribute('href');
+        if (href && href.startsWith('#')) {
+          e.preventDefault();
+          const targetId = href;
+          const targetElement = document.querySelector(targetId);
+          if (targetElement) {
+            utils.smoothScrollTo(targetElement);
+            window.trackEvent && window.trackEvent('Navigation', 'Click', targetId);
+          }
+        }
       });
     });
 
-    // Active link highlighting
     this.setupActiveLinks();
   },
 
@@ -186,58 +165,57 @@ const navigation = {
 
       navLinks.forEach(link => {
         link.classList.remove('active');
-        if (link.getAttribute('href') === `#${currentSection}`) {
+        const href = link.getAttribute('href');
+        if (href === `#${currentSection}`) {
           link.classList.add('active');
         }
       });
     };
 
     window.addEventListener('scroll', utils.debounce(updateActiveLink, 100));
+    updateActiveLink();
   }
 };
 
-// ===================================
-// LANGUAGE SWITCHER
-// ===================================
-const languageSwitcher = {
+const statsCounter = {
   init() {
-    const langButton = document.getElementById('langButton');
-    if (!langButton) return;
+    const statNumbers = document.querySelectorAll('.stat-number');
+    if (!statNumbers.length) return;
 
-    // Detect current language based on file name
-    const isFrench = window.location.pathname.includes('fr.html');
+    const animateStats = () => {
+      const statsSection = document.querySelector('.stats-section');
+      if (!statsSection || state.hasAnimated.stats) return;
 
-    // Update button appearance
-    this.updateButton(langButton, isFrench);
+      if (utils.isInViewport(statsSection, 100)) {
+        state.hasAnimated.stats = true;
+        statNumbers.forEach(stat => {
+          const target = parseInt(stat.getAttribute('data-target'));
+          this.animateValue(stat, 0, target, 2000);
+        });
+      }
+    };
 
-    // Handle language switch
-    langButton.addEventListener('click', (e) => {
-      e.preventDefault();
-      this.switchLanguage(isFrench);
-    });
+    window.addEventListener('scroll', utils.throttle(animateStats, 200));
+    animateStats();
   },
 
-  updateButton(button, isFrench) {
-    if (isFrench) {
-      button.textContent = 'English';
-      button.classList.remove('english');
-      button.classList.add('french');
-    } else {
-      button.textContent = 'Français';
-      button.classList.remove('french');
-      button.classList.add('english');
-    }
-  },
+  animateValue(element, start, end, duration) {
+    const range = end - start;
+    const increment = range / (duration / 16);
+    let current = start;
 
-  switchLanguage(isFrench) {
-    const targetPage = isFrench ? 'index.html' : 'fr.html';
-    window.location.href = targetPage;
+    const timer = setInterval(() => {
+      current += increment;
+      if (current >= end) {
+        element.textContent = end;
+        clearInterval(timer);
+      } else {
+        element.textContent = Math.floor(current);
+      }
+    }, 16);
   }
 };
 
-// ===================================
-// GALLERY SYSTEM
-// ===================================
 const gallery = {
   thumbnails: [],
   lightbox: null,
@@ -248,73 +226,53 @@ const gallery = {
     this.lightbox = document.getElementById('galleryLightbox');
     this.lightboxImg = document.getElementById('lightboxImg');
     this.caption = document.getElementById('caption');
-    this.thumbnails = Array.from(document.querySelectorAll('.thumb'));
+    this.thumbnails = Array.from(document.querySelectorAll('.gallery-item img'));
 
-    const openBtn = document.getElementById('openGallery');
-    const thumbnailsContainer = document.getElementById('thumbnails');
-    const closeBtn = document.querySelector('.close');
+    const galleryItems = document.querySelectorAll('.gallery-item');
+    const closeBtn = document.querySelector('.lightbox-close');
     const prevBtn = document.querySelector('.lightbox-nav.prev');
     const nextBtn = document.querySelector('.lightbox-nav.next');
 
-    if (!openBtn || !thumbnailsContainer) return;
-
-    // Toggle thumbnails visibility
-    openBtn.addEventListener('click', () => {
-      this.toggleThumbnails(thumbnailsContainer);
-    });
-
-    // Setup thumbnail clicks
-    this.thumbnails.forEach((thumb, index) => {
-      thumb.addEventListener('click', () => {
+    galleryItems.forEach((item, index) => {
+      item.addEventListener('click', () => {
         state.currentLightboxIndex = index;
         this.openLightbox();
+        window.trackEvent && window.trackEvent('Gallery', 'Open', index);
       });
     });
 
-    // Close lightbox
     if (closeBtn) {
       closeBtn.addEventListener('click', () => this.closeLightbox());
     }
 
-    // Navigation buttons
     if (prevBtn) {
       prevBtn.addEventListener('click', () => this.prevImage());
     }
+
     if (nextBtn) {
       nextBtn.addEventListener('click', () => this.nextImage());
     }
 
-    // Click outside to close
     this.lightbox.addEventListener('click', (e) => {
       if (e.target === this.lightbox) {
         this.closeLightbox();
       }
     });
 
-    // Keyboard navigation
     this.setupKeyboardNav();
-
-    // Touch swipe navigation
     this.setupSwipeNav();
-  },
-
-  toggleThumbnails(container) {
-    const isHidden = window.getComputedStyle(container).display === 'none';
-    container.style.display = isHidden ? 'grid' : 'none';
   },
 
   openLightbox() {
     this.lightbox.style.display = 'block';
     this.updateLightboxImage();
-    scrollManager.lock();
-    
-    // Focus management for accessibility
+    document.body.classList.add('no-scroll');
     this.lightbox.focus();
   },
 
   closeLightbox() {
     this.lightbox.style.display = 'none';
-    scrollManager.restore();
+    document.body.classList.remove('no-scroll');
   },
 
   updateLightboxImage() {
@@ -332,7 +290,7 @@ const gallery = {
   },
 
   prevImage() {
-    state.currentLightboxIndex = 
+    state.currentLightboxIndex =
       (state.currentLightboxIndex - 1 + this.thumbnails.length) % this.thumbnails.length;
     this.updateLightboxImage();
   },
@@ -370,153 +328,111 @@ const gallery = {
 
     this.lightbox.addEventListener('touchend', () => {
       const swipeDistance = startX - endX;
-      
+
       if (Math.abs(swipeDistance) > swipeThreshold) {
         if (swipeDistance > 0) {
-          this.nextImage(); // Swipe left
+          this.nextImage();
         } else {
-          this.prevImage(); // Swipe right
+          this.prevImage();
         }
       }
     });
   }
 };
 
-// ===================================
-// BOOKING SYSTEM
-// ===================================
-const booking = {
+const bookingModal = {
+  modal: null,
+  overlay: null,
+  closeBtn: null,
+  form: null,
+
   init() {
-    const toggleBtn = document.querySelector('.booking-toggle');
-    const bookingBox = document.querySelector('.booking-box');
-    const overlay = document.querySelector('.booking-overlay');
-    const closeBtn = document.querySelector('.booking-close');
-    const form = document.getElementById('bookingForm');
+    this.modal = document.getElementById('bookingModal');
+    this.overlay = document.querySelector('.booking-modal-overlay');
+    this.closeBtn = document.querySelector('.booking-modal-close');
+    this.form = document.getElementById('bookingForm');
 
-    if (!toggleBtn || !bookingBox) return;
+    if (!this.modal) return;
 
-    // Open booking form
-    toggleBtn.addEventListener('click', () => {
-      this.open(bookingBox, overlay);
+    const openButtons = document.querySelectorAll('[data-action="open-booking"]');
+    openButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.open();
+        window.trackEvent && window.trackEvent('Booking', 'Modal Open', btn.textContent);
+      });
     });
 
-    // Close booking form
-    if (closeBtn) {
-      closeBtn.addEventListener('click', () => {
-        this.close(bookingBox, overlay);
-      });
+    if (this.closeBtn) {
+      this.closeBtn.addEventListener('click', () => this.close());
     }
 
-    // Close on overlay click
-    if (overlay) {
-      overlay.addEventListener('click', () => {
-        this.close(bookingBox, overlay);
-      });
+    if (this.overlay) {
+      this.overlay.addEventListener('click', () => this.close());
     }
 
-    // Close on escape key
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && state.isBookingOpen) {
-        this.close(bookingBox, overlay);
+        this.close();
       }
     });
 
-    // Form validation and submission
-    if (form) {
-      this.setupFormValidation(form);
+    if (this.form) {
+      this.setupFormValidation();
     }
 
-    // Check for success parameter in URL
     this.checkSuccessMessage();
+    this.setupExitIntent();
   },
 
-  open(box, overlay) {
+  open() {
     state.isBookingOpen = true;
-    
-    // Add active classes
-    box.classList.add('active');
-    if (overlay) overlay.classList.add('active');
-    
-    // Lock scroll
-    scrollManager.lock();
-    
-    // Prevent text selection on body when form is open
-    document.body.style.userSelect = 'none';
-    document.body.style.webkitUserSelect = 'none';
-    
-    // Re-enable text selection inside the form
-    box.style.userSelect = 'auto';
-    box.style.webkitUserSelect = 'auto';
-    
-    // Focus first input after animation
-    setTimeout(() => {
-      const firstInput = box.querySelector('input');
-      if (firstInput) {
-        firstInput.focus();
-      }
-    }, 400);
-  },
+    this.modal.classList.add('active');
+    document.body.classList.add('no-scroll');
 
-  close(box, overlay) {
-    state.isBookingOpen = false;
-    
-    // Remove active classes
-    box.classList.remove('active');
-    if (overlay) overlay.classList.remove('active');
-    
-    // Restore scroll
-    scrollManager.restore();
-    
-    // Re-enable text selection
-    document.body.style.userSelect = '';
-    document.body.style.webkitUserSelect = '';
-    
-    // Blur any focused input
-    if (document.activeElement) {
-      document.activeElement.blur();
+    const firstInput = this.modal.querySelector('input');
+    if (firstInput) {
+      setTimeout(() => firstInput.focus(), 400);
     }
   },
 
-  setupFormValidation(form) {
-    // Set minimum date to today
-    const dateInput = form.querySelector('input[type="date"]');
+  close() {
+    state.isBookingOpen = false;
+    this.modal.classList.remove('active');
+    document.body.classList.remove('no-scroll');
+  },
+
+  setupFormValidation() {
+    const dateInput = this.form.querySelector('input[type="date"]');
     if (dateInput) {
       const today = new Date().toISOString().split('T')[0];
       dateInput.setAttribute('min', today);
     }
 
-    // Phone number formatting
-    const phoneInput = form.querySelector('input[type="tel"]');
-    if (phoneInput) {
-      phoneInput.addEventListener('input', (e) => {
-        let value = e.target.value.replace(/\D/g, '');
-        if (value.length > 10) value = value.slice(0, 10);
-        
-        if (value.length >= 6) {
-          value = `(${value.slice(0, 3)}) ${value.slice(3, 6)}-${value.slice(6)}`;
-        } else if (value.length >= 3) {
-          value = `(${value.slice(0, 3)}) ${value.slice(3)}`;
-        }
-        
-        e.target.value = value;
+    const phoneInputs = document.querySelectorAll('input[type="tel"]');
+    phoneInputs.forEach(input => {
+      input.addEventListener('input', (e) => {
+        e.target.value = utils.formatPhoneNumber(e.target.value);
       });
-    }
+    });
 
-    // Form submission
-    form.addEventListener('submit', (e) => {
-      if (!form.checkValidity()) {
+    this.form.addEventListener('submit', (e) => {
+      if (!this.form.checkValidity()) {
         e.preventDefault();
-        this.showValidationErrors(form);
+        this.showValidationErrors();
+      } else {
+        window.trackEvent && window.trackEvent('Booking', 'Form Submit', 'Main Form');
       }
     });
   },
 
-  showValidationErrors(form) {
-    const inputs = form.querySelectorAll('input[required]');
+  showValidationErrors() {
+    const inputs = this.form.querySelectorAll('input[required], select[required], textarea[required]');
     inputs.forEach(input => {
       if (!input.validity.valid) {
-        input.classList.add('error');
-        setTimeout(() => input.classList.remove('error'), 3000);
+        input.style.borderColor = '#f44336';
+        setTimeout(() => {
+          input.style.borderColor = '';
+        }, 3000);
       }
     });
   },
@@ -525,46 +441,117 @@ const booking = {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('success') === '1') {
       this.showSuccessNotification();
-      // Clean URL
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   },
 
   showSuccessNotification() {
-    const notification = document.createElement('div');
-    notification.className = 'success-notification';
-    notification.innerHTML = `
-      <i class="fas fa-check-circle"></i>
-      <span>Booking submitted successfully! We'll contact you soon.</span>
-    `;
-    document.body.appendChild(notification);
+    const notification = document.getElementById('successNotification');
+    if (!notification) return;
 
-    setTimeout(() => {
-      notification.classList.add('show');
-    }, 100);
+    notification.classList.add('show');
 
     setTimeout(() => {
       notification.classList.remove('show');
-      setTimeout(() => notification.remove(), 300);
     }, 5000);
+  },
+
+  setupExitIntent() {
+    if (window.innerWidth < 768) return;
+    if (state.exitIntentShown) return;
+
+    let hasMovedOut = false;
+
+    document.addEventListener('mouseleave', (e) => {
+      if (e.clientY < 10 && !state.exitIntentShown && !state.isBookingOpen) {
+        hasMovedOut = true;
+      }
+    });
+
+    document.addEventListener('mouseenter', () => {
+      if (hasMovedOut && !state.exitIntentShown && !state.isBookingOpen) {
+        setTimeout(() => {
+          if (!state.isBookingOpen) {
+            this.open();
+            state.exitIntentShown = true;
+            window.trackEvent && window.trackEvent('Booking', 'Exit Intent', 'Triggered');
+          }
+        }, 100);
+      }
+      hasMovedOut = false;
+    });
   }
 };
 
-// ===================================
-// PERFORMANCE OPTIMIZATIONS
-// ===================================
-const performance = {
+const contactForm = {
   init() {
-    // Lazy load images
-    this.lazyLoadImages();
-    
-    // Optimize animations on scroll
-    this.optimizeScrollAnimations();
+    const form = document.getElementById('contactForm');
+    if (!form) return;
+
+    const phoneInput = form.querySelector('input[type="tel"]');
+    if (phoneInput) {
+      phoneInput.addEventListener('input', (e) => {
+        e.target.value = utils.formatPhoneNumber(e.target.value);
+      });
+    }
+
+    form.addEventListener('submit', (e) => {
+      if (form.checkValidity()) {
+        window.trackEvent && window.trackEvent('Contact', 'Form Submit', 'Contact Form');
+
+        const dateInput = form.querySelector('input[name="date"]');
+        if (dateInput) {
+          dateInput.value = new Date().toISOString().split('T')[0];
+        }
+      } else {
+        e.preventDefault();
+        this.showValidationErrors(form);
+      }
+    });
   },
 
-  lazyLoadImages() {
+  showValidationErrors(form) {
+    const inputs = form.querySelectorAll('input[required], textarea[required]');
+    inputs.forEach(input => {
+      if (!input.validity.valid) {
+        input.style.borderColor = '#f44336';
+        setTimeout(() => {
+          input.style.borderColor = '';
+        }, 3000);
+      }
+    });
+  }
+};
+
+const entranceAnimations = {
+  init() {
+    const elements = document.querySelectorAll('.section');
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.style.opacity = '1';
+          entry.target.style.transform = 'translateY(0)';
+        }
+      });
+    }, {
+      threshold: 0.1,
+      rootMargin: '0px 0px -50px 0px'
+    });
+
+    elements.forEach(element => {
+      element.style.opacity = '0';
+      element.style.transform = 'translateY(20px)';
+      element.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+      observer.observe(element);
+    });
+  }
+};
+
+const lazyLoading = {
+  init() {
     const images = document.querySelectorAll('img[loading="lazy"]');
-    
+
     if ('IntersectionObserver' in window) {
       const imageObserver = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
@@ -581,55 +568,106 @@ const performance = {
 
       images.forEach(img => imageObserver.observe(img));
     }
-  },
+  }
+};
 
-  optimizeScrollAnimations() {
-    // Reduce animations on low-end devices
+const performance = {
+  init() {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       document.documentElement.style.scrollBehavior = 'auto';
+
+      const style = document.createElement('style');
+      style.textContent = '* { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }';
+      document.head.appendChild(style);
     }
+
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(() => {
+        this.preloadImages();
+      });
+    } else {
+      setTimeout(() => this.preloadImages(), 1000);
+    }
+  },
+
+  preloadImages() {
+    const images = ['pexels-anastasia-shuraeva-7647397.jpg', 'pexels-anastasia-shuraeva-7647762.jpg'];
+    images.forEach(src => {
+      const img = new Image();
+      img.src = src;
+    });
   }
 };
 
-// ===================================
-// INITIALIZATION
-// ===================================
-const app = {
+const analytics = {
   init() {
-    // Unlock scrolling when page is ready
-    window.addEventListener('load', () => {
-      scrollManager.unlock();
+    window.trackEvent = (category, action, label) => {
+      if (typeof gtag !== 'undefined') {
+        gtag('event', action, {
+          'event_category': category,
+          'event_label': label
+        });
+      }
+
+      console.log(`Event: ${category} - ${action} - ${label}`);
+    };
+
+    const phoneLinks = document.querySelectorAll('a[href^="tel:"]');
+    phoneLinks.forEach(link => {
+      link.addEventListener('click', () => {
+        window.trackEvent && window.trackEvent('Contact', 'Phone Click', link.textContent);
+      });
     });
 
-    // Force page to top on refresh
-    if ('scrollRestoration' in history) {
-      history.scrollRestoration = 'manual';
-    }
-    window.scrollTo(0, 0);
-
-    // Initialize all modules
-    mobileMenu.init();
-    navigation.init();
-    languageSwitcher.init();
-    gallery.init();
-    booking.init();
-    performance.init();
-
-    // Add loaded class for CSS animations
-    document.body.classList.add('page-loaded');
+    const emailLinks = document.querySelectorAll('a[href^="mailto:"]');
+    emailLinks.forEach(link => {
+      link.addEventListener('click', () => {
+        window.trackEvent && window.trackEvent('Contact', 'Email Click', link.textContent);
+      });
+    });
   }
 };
 
-// Start application when DOM is ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => app.init());
-} else {
-  app.init();
-}
+const app = {
+  init() {
+    document.addEventListener('DOMContentLoaded', () => {
+      scrollProgress.init();
+      mobileMenu.init();
+      navigation.init();
+      statsCounter.init();
+      gallery.init();
+      bookingModal.init();
+      contactForm.init();
+      entranceAnimations.init();
+      lazyLoading.init();
+      performance.init();
+      analytics.init();
 
-// ===================================
-// EXPORTS (for potential module usage)
-// ===================================
+      document.body.classList.add('page-loaded');
+    });
+
+    if (document.readyState === 'loading') {
+      return;
+    } else {
+      scrollProgress.init();
+      mobileMenu.init();
+      navigation.init();
+      statsCounter.init();
+      gallery.init();
+      bookingModal.init();
+      contactForm.init();
+      entranceAnimations.init();
+      lazyLoading.init();
+      performance.init();
+      analytics.init();
+
+      document.body.classList.add('page-loaded');
+    }
+  }
+};
+
+app.init();
+
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { app, utils, scrollManager, gallery, booking };
+  module.exports = { app, utils };
 }
